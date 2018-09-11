@@ -4,10 +4,12 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score, mean_squared_error, confusion_matrix
 from metric_prf import P, R, F
+from paths import path2tweets
+from config import lstm_dim, mlp_dim, word_dim
 
 import numpy as np
 
-path2tweets = '/Users/tomoki/PycharmProjects/yamesou/outfiles/label_id.tsv'
+
 df_tweets = pd.read_csv(path2tweets, sep='\t', header=None)
 
 print(tf.__version__)
@@ -81,12 +83,12 @@ fwd = keras.Sequential()
 
 
 model = keras.Sequential()
-model.add(keras.layers.Embedding(vocab_size, 16))
+model.add(keras.layers.Embedding(vocab_size, word_dim))
 # model.add(keras.layers.GlobalAveragePooling1D())
 # model.add(keras.layers.GlobalMaxPooling1D())
-model.add(keras.layers.Bidirectional(keras.layers.LSTM(32, go_backwards=True)))
+model.add(keras.layers.Bidirectional(keras.layers.LSTM(lstm_dim)))
 
-model.add(keras.layers.Dense(16, activation=tf.nn.relu))
+model.add(keras.layers.Dense(mlp_dim, activation=tf.nn.relu))
 model.add(keras.layers.Dense(1, activation=tf.nn.sigmoid))
 
 model.summary()
@@ -128,7 +130,7 @@ for td in train_data:
                                                             padding='post',
                                                             maxlen=len(max(td,key=len))))
 
-epochs=30
+epochs=100
 for epc in range(epochs):
     steps = np.random.permutation([step for step in range(len(train_data_splits))])
     for step in steps:
@@ -181,16 +183,16 @@ print(history_dict.keys())
 import matplotlib.pyplot as plt
 
 acc = history.history['acc']
-val_acc = history.history['val_acc']
+# val_acc = history.history['val_acc']
 loss = history.history['loss']
-val_loss = history.history['val_loss']
+# val_loss = history.history['val_loss']
 
 epochs = range(1, len(acc) + 1)
 
 # "bo" is for "blue dot"
 plt.plot(epochs, loss, 'bo', label='Training loss')
 # b is for "solid blue line"
-plt.plot(epochs, val_loss, 'b', label='Validation loss')
+# plt.plot(epochs, val_loss, 'b', label='Validation loss')
 plt.title('Training and validation loss')
 plt.xlabel('Epochs')
 plt.ylabel('Loss')
