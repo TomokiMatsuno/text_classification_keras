@@ -6,7 +6,7 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import classification_report, accuracy_score, mean_squared_error, confusion_matrix
 from metric_prf import P, R, F
 from paths import path2tweets
-from config import lstm_dim, mlp_dim, word_dim, pdrop_lstm, pdrop_mlp, pdrop_embs, add_bos_eos
+from config import lstm_dim, mlp_dim, word_dim, pdrop_lstm, pdrop_mlp, pdrop_embs, add_bos_eos, validate_every, decay
 from utils import batch_matmul
 
 from keras.layers import Input, Embedding, LSTM, K
@@ -29,11 +29,11 @@ train_labels, test_labels, train_data, test_data = train_test_split(df_tweets[0]
 if add_bos_eos:
     tmp = []
     for td in train_data:
-        tmp.append([0] + td)
+        tmp.append([1] + td)
     train_data = tmp
     tmp = []
     for td in test_data:
-        tmp.append([0] + td)
+        tmp.append([1] + td)
     test_data = tmp
 
 
@@ -123,7 +123,7 @@ tweet_vec = keras.layers.Lambda(lambda inputs: tf_funcs(inputs))(keys)
 score = keras.layers.Dense(1, activation='relu')(tweet_vec)
 model = Model(inputs=[main_input], outputs=[score])
 model.summary()
-model.compile(optimizer=tf.train.AdamOptimizer(),
+model.compile(optimizer=keras.optimizers.adam(decay=decay),
               loss='binary_crossentropy',
               metrics=["accuracy"])
 
@@ -208,16 +208,16 @@ for epc in range(epochs):
                             partial_y_train,
                             epochs=1,
                             batch_size=500,
-                            verbose=1,
+                            verbose=0,
                             class_weight=class_weight)
         # validation_data = (x_val, y_val),
-    if epc % 2 == 0 and epc > 0:
+    if epc % validate_every == 0 and epc > 0:
         failed = 0
         pred_scores = []
 
         for d in test_data:
             try:
-                pred_scores.append(model.predict(np.matrix(d + [0] * add_bos_eos if d else [0])))
+                pred_scores.append(model.predict(np.matrix(d + [2] * add_bos_eos if d else [0])))
                 # if add_bos_eos:
                 #     pred_scores.append(model.predict(np.matrix(d + [0] if d else [0])))
                 # else:
