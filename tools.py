@@ -5,20 +5,20 @@ import numpy as np
 import config, paths
 from config import min_ocr
 from collections import Counter
-
+from time import time
 from gensim.models import KeyedVectors
-
+#START
+prev = time()
+wv = KeyedVectors.load_word2vec_format(paths.path2wv, limit=100000)
+print('Loaded {} word vectors. Took {} seconds'.format(len(wv.vocab), round(time()-prev)))
+#END
 m = MeCab.Tagger('-Owakati')
-# wv = KeyedVectors.load_word2vec_format(paths.path2wv, limit=100000)
-wv = KeyedVectors.load_word2vec_format(paths.path2wv, limit=1000)
 
 class Dict:
     def __init__(self, sents, initial_entries=None):
         self.cnt = Counter(sents)
         self.i2x = {}
         self.x2i = {}
-        self.appeared_x2i = {}
-        self.appeared_i2x = {}
         self.freezed = False
         self.initial_entries = initial_entries
 
@@ -28,7 +28,10 @@ class Dict:
 
         for ent in sents:
             self.add_entry(ent)
-
+        #START
+        self.text_vocab_size = len(self.i2x)
+        self.add_pretrained()
+        #END
         self.freeze()
 
     def get_dicts(self):
@@ -58,10 +61,21 @@ class Dict:
 
     def freeze(self):
         self.freezed = True
+    #START
+    def add_pretrained(self):
+        text_vocab = set(self.x2i.keys())
+        word_list = []
+        for x in self.i2x.values():
+            word_list.append(x)
 
-PATH2DATA = '/Users/tomoki/NLP_data/conll2018/task1/all/portuguese-dev'
-PATH2TRAIN = ''
-PATH2DEV = ''
+        for w in wv.vocab:
+            if w not in text_vocab:
+                word_list.append(w)
+
+        reverse = lambda x: dict(zip(x, range(len(x))))
+        self.x2i = reverse(word_list)
+        self.i2x = dict(zip(range(len(word_list)), word_list))
+    #END
 
 
 class Vocab(object):
@@ -73,8 +87,8 @@ class Vocab(object):
 
         d = Dict(words, initial_entries=['<PAD>', '<BOS>', '<EOS>', '<UNK>'])
         self.i2x, self.x2i = d.get_dicts()
+        self.text_vocab_size = d.text_vocab_size
         self.PAD, self.BOS, self.EOS, self.UNK = 0, 1, 2, 3
-        self.pret_embs = np.zeros((len(self.i2x) + 1, config.word_dim))
 
     def add_parsefile(self, data):
         chars = []
@@ -82,14 +96,6 @@ class Vocab(object):
             chars.extend(s)
 
         self._char_dict.add_entries(chars)
-
-    def prepare_pretrained_embs(self):
-        zero_vector = np.zeros(wv.vector_size)
-        for i, c in enumerate(self.x2i):
-            self.pret_embs[self.x2i[c]] = wv[c] if c in wv else zero_vector
-
-        self.pret_embs = self.pret_embs / np.std(self.pret_embs)
-        return
 
     def sent2ids(self, t):
         t = omit_url_and_id(t)
@@ -99,12 +105,24 @@ class Vocab(object):
             ret.append(self.x2i[w] if w in self.x2i else self.x2i['<UNK>'])
         return ret
 
+#START
+def prepare_pretrained_embs(vocab):
+    pret_embs = np.zeros((len(set(wv.vocab).union(vocab.x2i)) + 1, config.word_dim))
+    zero_vector = np.zeros(wv.vector_size)
+    for i, c in enumerate(vocab.x2i):
+        pret_embs[vocab.x2i[c]] = wv[c] if c in wv else zero_vector
+
+    pret_embs = pret_embs / np.std(pret_embs)
+    return pret_embs
+#END
+
 def omit_url_and_id(s):
     ptn_url, ptn_id = re.compile('http.*[a-zA-Z0-9_\/:]??'), re.compile('@[a-zA-Z0-9_]+')
     s_tmp = re.sub(ptn_url, '', s)
     ret = re.sub(ptn_id, '', s_tmp)
 
     return ret
+
 
 def wakati(s):
     tmp = omit_url_and_id(s)
