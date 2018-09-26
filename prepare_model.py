@@ -169,7 +169,10 @@ class Classifier(object):
                 self.model.save(path2save + '/parameters')
 
     def parse(self, tweet):
+
         d = [self.vocab.BOS] + self.vocab.sent2ids(tweet) + [self.vocab.EOS]
-        return self.model.predict(np.matrix(d + [self.vocab.PAD] * (dict_batch_size[len(d)] - len(d)) if d else [0], dtype='int32'))
+        val_input = d + [self.vocab.PAD] * (dict_batch_size[len(d)] - len(d)) if d else [0]
+        val_input = [np.matrix([e if e < vocab.text_vocab_size else vocab.UNK for e in val_input], dtype='int32'), np.matrix(val_input, dtype='int32')]
+        return self.model.predict(val_input)
 
 
